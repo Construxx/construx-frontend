@@ -1,0 +1,6 @@
+{
+  "name": "CONSTRUX — Construction Operating System",
+  "description": "Unified platform connecting Project OS, Supply OS (Procurement), and BuildTwin (Digital Twin) into an intelligent construction lifecycle system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
