@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Project, Building } from '../../types';
 import { Smartphone } from 'lucide-react';
+import { api } from '../../lib/api';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -27,7 +28,6 @@ interface CommandPaletteProps {
   onOpenSimulator?: () => void;
   onOpenHandoverCert?: () => void;
   onOpenPricing?: () => void;
-  onOpenDemo?: () => void;
   projects: Project[];
   activeProject: Project | null;
   buildings: Building[];
@@ -42,7 +42,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenSimulator,
   onOpenHandoverCert,
   onOpenPricing,
-  onOpenDemo,
   projects,
   activeProject,
   buildings,
@@ -51,6 +50,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -83,48 +83,37 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const quickPrompts = [
     {
-      label: 'Which tasks risk delay on Victoria Heights?',
-      action: () => handleAskStore('Which tasks risk delay on Victoria Heights?'),
+      label: 'Which tasks risk delay on this project?',
+      action: () => { void handleAskStore('Which tasks risk delay?'); },
     },
     {
       label: 'What materials have critical shortages this week?',
-      action: () => handleAskStore('What materials have critical shortages this week?'),
+      action: () => { void handleAskStore('What materials have critical shortages?'); },
     },
     {
-      label: 'Show Daikin VRV maintenance status in Room 204',
-      action: () => handleAskStore('Show Daikin VRV maintenance status in Room 204'),
+      label: 'What building equipment needs maintenance?',
+      action: () => { void handleAskStore('What building equipment needs maintenance?'); },
     },
     {
-      label: 'What is the Naira price trend for cement and steel?',
-      action: () => handleAskStore('What is the Naira price trend for cement and steel?'),
+      label: 'Summarize this project’s current status',
+      action: () => { void handleAskStore('Summarize the current project status.'); },
     },
   ];
 
-  const handleAskStore = (promptText: string) => {
+  const handleAskStore = async (promptText: string) => {
     setQuery(promptText);
     setIsAiLoading(true);
     setAiAnswer(null);
-
-    // Compute intelligent deterministic response from real active data
-    setTimeout(() => {
-      let response = '';
-      const p = activeProject || projects[0];
-
-      if (promptText.toLowerCase().includes('delay') || promptText.toLowerCase().includes('task')) {
-        response = `⚠️ **Schedule Variance Detected on ${p.name}**\n\n• **Task #3 (Level 4 Electrical & Armoured Cabling)** is currently at 40% progress with an estimated **5-day variance**.\n• **Root Cause:** Raw material deficit of 3,400m 4-Core 16mm² armoured copper cable.\n• **Ripple Impact:** Delays Level 4 MEP sign-off and subsequent interior drywall closing.\n• **Recommended Action:** Expedite purchase order to ABC Electrical Supplies (4-day lead time) or open the **What-If Simulator** to test overtime staffing.`;
-      } else if (promptText.toLowerCase().includes('material') || promptText.toLowerCase().includes('shortage')) {
-        response = `📦 **Supply Inventory Telemetry (${p.name})**\n\n• **Critical Shortage:** 4-Core 16mm² Armoured Cable — 600m on-site vs 4,000m required (**3,400m deficit**).\n• **Low Stock Warning:** Galvanized Spiral Ducting (400mm) — 140 sections on site, 4 days buffer remaining.\n• **Adequate Stock:** Portland Cement Grade 42.5 (1,200 bags on-site, 11,500 delivered).\n• **Next Delivery Due:** ABC Electrical Supplies PO-VH-094 scheduled for Level 4 staging.`;
-      } else if (promptText.toLowerCase().includes('room 204') || promptText.toLowerCase().includes('equipment') || promptText.toLowerCase().includes('daikin')) {
-        response = `🏢 **BuildTwin Digital Twin Status — Room 204**\n\n• **Asset:** Daikin VRV Condensing Unit & Air Handling Terminal (Room 204, Floor 2).\n• **Telemetry Alert:** Sensor telemetry reports differential pressure (Delta-P) drop of 18% on electrostatic intake filters.\n• **Maintenance Status:** AI Preventive Work Order dispatched to David Sterling (Facility Engineer).\n• **Warranty:** Active through October 2028 via CoolTech HVAC Solutions.`;
-      } else if (promptText.toLowerCase().includes('price') || promptText.toLowerCase().includes('cement') || promptText.toLowerCase().includes('naira')) {
-        response = `📈 **Lagos Construction Commodity Price Indices (₦)**\n\n• **Dangote 42.5R Cement:** ₦8,400 / bag (+8.5% 30-day change due to haulage fuel tariffs). AI recommends: **BUY NOW** to lock in Q4 requirements.\n• **High-Yield TMT Steel (16mm):** ₦1,240,000 / tonne (stable, -1.2% over 14 days).\n• **4-Core 16mm² Armoured Cable:** ₦4,200 / meter (+14.2% FX copper import pressure).`;
-      } else {
-        response = `CONSTRUX Intelligence: Found active records for ${p.name} (Code: ${p.code}, Progress: ${p.progressPercent}%, Budget: ₦${(p.budgetSpent / 1e6).toFixed(0)}M of ₦${(p.budgetTotal / 1e6).toFixed(0)}M). All cross-pillar telemetry is synced across Build, Supply, and Operate.`;
-      }
-
-      setAiAnswer(response);
+    setAiError(null);
+    try {
+      if (!activeProject) throw new Error('Select a project before asking a question.');
+      const result = await api.askQuestion(promptText, activeProject.id, activeBuilding?.id) as { answer: string };
+      setAiAnswer(result.answer);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'AI request failed.');
+    } finally {
       setIsAiLoading(false);
-    }, 600);
+    }
   };
 
   const navActions = [
@@ -230,16 +219,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         if (onOpenPricing) onOpenPricing();
       },
     },
-    {
-      title: 'Start 9-Step Hackathon Demo Walkthrough',
-      category: 'Demo Flow',
-      icon: Zap,
-      color: 'text-amber-400',
-      action: () => {
-        onClose();
-        if (onOpenDemo) onOpenDemo();
-      },
-    },
   ];
 
   const filteredNav = navActions.filter(
@@ -279,20 +258,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             </button>
           )}
           <kbd className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-            ESC
+            <span>↵</span>
           </kbd>
         </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {isAiLoading && <div className="px-4 py-2 text-xs text-amber-300" role="status">CONSTRUX AI is processing the request…</div>}
 
-        {/* Content Body */}
-        <div className="p-4 overflow-y-auto space-y-4 flex-1">
-          {/* AI Response Display if available */}
-          {isAiLoading && (
-            <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/40 flex items-center gap-3 text-amber-300">
-              <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
-              <div className="text-xs font-mono">CONSTRUX AI is synthesizing cross-pillar records...</div>
-            </div>
-          )}
-
+          {aiError && <div role="alert" className="rounded-lg border border-rose-500/40 bg-rose-950/30 p-3 text-sm text-rose-200">{aiError}</div>}
           {aiAnswer && (
             <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/50 shadow-lg text-slate-200 space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between text-xs border-b border-amber-500/20 pb-2">

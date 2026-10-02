@@ -21,7 +21,6 @@ import {
   Zap,
 } from 'lucide-react';
 import { Material, PurchaseOrder, InventoryLog, Supplier, AIAlert, Project } from '../../types';
-import { PriceTrackerView } from '../supply/PriceTrackerView';
 import { SyncStatusBadge } from '../offline/SyncStatusBadge';
 
 interface ProcurementViewProps {
@@ -61,13 +60,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   // Form states for Create PO
   const [selectedMaterialId, setSelectedMaterialId] = useState(materials[0]?.id || '');
   const [selectedSupplierId, setSelectedSupplierId] = useState(suppliers[0]?.id || '');
-  const [orderQuantity, setOrderQuantity] = useState(3400);
-  const [orderNotes, setOrderNotes] = useState('Expedited order for Level 4 electrical installation.');
+  const [orderQuantity, setOrderQuantity] = useState(1);
+  const [orderNotes, setOrderNotes] = useState('');
 
   // Form states for Record Delivery
   const [deliveryMaterialId, setDeliveryMaterialId] = useState(materials[0]?.id || '');
-  const [deliveryQty, setDeliveryQty] = useState(3400);
-  const [deliveryNotes, setDeliveryNotes] = useState('Delivery verified and stored in Floor 1 secure warehouse.');
+  const [deliveryQty, setDeliveryQty] = useState(1);
+  const [deliveryNotes, setDeliveryNotes] = useState('');
 
   // Check if cable shortage alert exists
   const cableAlert = alerts.find(
@@ -82,17 +81,16 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const handleOpenAiPo = (mat: Material) => {
     setSelectedMaterialId(mat.id);
     const deficit = Math.max(0, mat.quantityRequired - mat.quantityDelivered);
-    setOrderQuantity(deficit > 0 ? deficit : 1000);
-    const prefSupplier = suppliers.find((s) => s.preferred) || suppliers[0];
-    setSelectedSupplierId(prefSupplier.id);
-    setOrderNotes(`Pre-filled via CONSTRUX AI Suggestion to cover ${deficit} ${mat.unit} deficit.`);
+    setOrderQuantity(deficit > 0 ? deficit : 1);
+    setSelectedSupplierId(suppliers[0]?.id ?? '');
+    setOrderNotes('');
     setShowCreatePoModal(true);
   };
 
   const handleOpenDelivery = (mat: Material) => {
     setDeliveryMaterialId(mat.id);
     const deficit = Math.max(0, mat.quantityRequired - mat.quantityDelivered);
-    setDeliveryQty(deficit > 0 ? deficit : 500);
+    setDeliveryQty(deficit > 0 ? deficit : 1);
     setShowDeliveryModal(true);
   };
 
@@ -180,20 +178,20 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Purchase Orders</div>
             <div className="text-xl font-bold text-cyan-400 mt-1">{purchaseOrders.length} Orders</div>
             <div className="text-[10px] font-mono text-emerald-400 mt-1">
-              {purchaseOrders.filter((p) => p.status === 'delivered').length} Fulfilled
+              {purchaseOrders.filter((p) => p.status === 'delivered').length} Delivered
             </div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800">
             <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Vetted Suppliers</div>
             <div className="text-xl font-bold text-white mt-1">{suppliers.length} Vendors</div>
-            <div className="text-[10px] font-mono text-slate-400 mt-1">2 Preferred Partners</div>
+            <div className="text-[10px] font-mono text-slate-400 mt-1">Supplier records</div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800">
             <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Audit Handshake</div>
             <div className="text-xl font-bold text-emerald-400 mt-1">{inventoryLogs.length} Verified Logs</div>
-            <div className="text-[10px] font-mono text-slate-400 mt-1">100% Traceable to Tasks</div>
+            <div className="text-[10px] font-mono text-slate-400 mt-1">Recorded inventory changes</div>
           </div>
         </div>
       </div>
@@ -209,9 +207,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-mono uppercase bg-cyan-950 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded-full font-bold">
-                    AI PROCUREMENT SUGGESTION
+                    PROCUREMENT ALERT
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">Inventory Alert #AL-01</span>
+                  <span className="text-[10px] font-mono text-slate-400">Open alert from backend</span>
                 </div>
                 <h3 className="text-sm font-bold text-white tracking-wide">{cableAlert.title}</h3>
                 <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">{cableAlert.message}</p>
@@ -223,12 +221,12 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
             <button
               onClick={() => {
-                const cableMat = materials.find((m) => m.name.toLowerCase().includes('cable'));
-                if (cableMat) handleOpenAiPo(cableMat);
+                const cableMat = materials.find((m) => m.id === cableAlert.metadata?.materialId);
+                if (cableMat) onAiSuggest(cableMat.id);
               }}
               className="shrink-0 px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-950/40 transition-transform active:scale-95"
             >
-              <span>1-Click Generate PO (3,400m)</span>
+              <span>Request AI purchase recommendation</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -241,7 +239,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           {(
             [
               { key: 'materials', label: `Materials Inventory (${materials.length})`, icon: Boxes },
-              { key: 'prices', label: 'Naira Price Desk', icon: DollarSign },
+              { key: 'prices', label: 'Market prices', icon: DollarSign },
               { key: 'receiving', label: 'Delivery Receiving (Wow #1)', icon: PackageCheck },
               { key: 'purchase_orders', label: `Purchase Orders (${purchaseOrders.length})`, icon: Truck },
               { key: 'suppliers', label: `Suppliers Directory (${suppliers.length})`, icon: Building },
@@ -396,13 +394,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         </div>
       )}
 
-      {/* TAB CONTENT: NAIRA PRICE DESK */}
+      {/* TAB CONTENT: EXTERNAL MARKET DATA */}
       {activeTab === 'prices' && (
-        <PriceTrackerView
-          materials={materials}
-          suppliers={suppliers}
-          onCreatePO={onCreatePO}
-        />
+        <div className="rounded-2xl border border-[#232C3B] bg-[#121821] p-8 text-center text-slate-300">
+          Market-price history is unavailable: no live or maintained price-feed integration is configured.
+        </div>
       )}
 
       {/* TAB CONTENT: DELIVERY RECEIVING (Wow #1 Ripple Moment) */}
@@ -416,7 +412,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                   <span className="text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold">
                     QA WAYBILL & RECEIVING PROTOCOL
                   </span>
-                  <span className="text-xs text-slate-400 font-mono">Dock: Victoria Heights Floor 1 Warehouse</span>
+                  <span className="text-xs text-slate-400 font-mono">Project: {project.name}</span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
                   <PackageCheck className="w-6 h-6 text-emerald-400" />

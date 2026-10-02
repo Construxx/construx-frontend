@@ -90,7 +90,7 @@ export const BoQImportResultSchema = z.object({
 
 export const BoQImportRequestSchema = z.object({
   format: z.enum(['rows', 'pdf_base64', 'csv_text']),
-  rows: z.array(z.record(z.any())).optional(),
+  rows: z.array(z.record(z.string(), z.any())).optional(),
   csvText: z.string().optional(),
   pdfBase64: z.string().optional(),
   fileName: z.string().optional(),

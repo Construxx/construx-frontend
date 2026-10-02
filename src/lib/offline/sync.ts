@@ -168,36 +168,14 @@ export async function flushOutbox(): Promise<void> {
 // PROCESS SINGLE OUTBOX ITEM
 // -------------------------------------------------------------
 async function processOutboxItem(item: OutboxEntry) {
-  // Simulated delay in mock environment for realistic feedback (600-1000ms)
-  await new Promise((r) => setTimeout(r, 750));
-
   switch (item.type) {
     case 'postSiteUpdate': {
       const { projectId, updateId, note, photoUrl, tags, completionReported } = item.payload;
 
       // Check conflict: If existing server update has later timestamp
-      try {
-        const res = await api.postSiteUpdate(projectId, {
-          note,
-          photoUrl,
-          tags,
-          completionReported,
-        });
-
-        // Mark local record as synced
-        if (updateId) {
-          await db.siteUpdates.update(updateId, { _syncStatus: 'synced' });
-        }
-        if (res.triggeredAlert) {
-          addSyncLog('info', `AI Alert triggered by site update: ${res.triggeredAlert.title}`);
-        }
-      } catch (err: any) {
-        // If simulated or mock fallback, mark local as synced
-        if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
-          throw err;
-        }
-        await db.siteUpdates.update(updateId, { _syncStatus: 'synced' });
-      }
+      const res = await api.postSiteUpdate(projectId, { note, photoUrl, tags, completionReported });
+      if (updateId) await db.siteUpdates.update(updateId, { _syncStatus: 'synced' });
+      if (res.triggeredAlert) addSyncLog('info', `Alert triggered by site update: ${res.triggeredAlert.title}`);
       break;
     }
 
@@ -205,79 +183,33 @@ async function processOutboxItem(item: OutboxEntry) {
       const { projectId, taskId, progress, status, clientUpdatedAt } = item.payload;
 
       // Conflict rule: Last-write-wins by timestamp, but log if conflict occurs
-      try {
-        await api.updateTask(projectId, taskId, { progress, status });
-        await db.tasks.update(taskId, { _syncStatus: 'synced', progress, status });
-      } catch (err: any) {
-        if (err.message?.includes('Failed to fetch')) throw err;
-        // Last-write-wins local update
-        await db.tasks.update(taskId, { _syncStatus: 'synced', progress, status });
-        addSyncLog(
-          'conflict',
-          `Task ${taskId.slice(0, 8)} updated via last-write-wins`,
-          `Client timestamp: ${clientUpdatedAt}`
-        );
-      }
+      await api.updateTask(projectId, taskId, { progress, status });
+      await db.tasks.update(taskId, { _syncStatus: 'synced', progress, status });
+      addSyncLog('success', `Task ${taskId.slice(0, 8)} updated on the server`, `Client timestamp: ${clientUpdatedAt}`);
       break;
     }
 
     case 'confirmDelivery': {
       const { projectId, materialId, quantityReceived, poId, notes } = item.payload;
-      try {
-        await api.recordDelivery(projectId, {
-          materialId,
-          quantityReceived,
-          poId,
-          notes,
-        });
-        if (poId) {
-          await db.orders.update(poId, { _syncStatus: 'synced', status: 'delivered' });
-        }
-      } catch (err: any) {
-        if (err.message?.includes('Failed to fetch')) throw err;
-        if (poId) {
-          await db.orders.update(poId, { _syncStatus: 'synced', status: 'delivered' });
-        }
-      }
+      await api.recordDelivery(projectId, { materialId, quantityReceived, poId, notes });
+      if (poId) await db.orders.update(poId, { _syncStatus: 'synced', status: 'delivered' });
       break;
     }
 
     case 'createPurchaseOrder': {
       const { projectId, tempPoId, poData } = item.payload;
-      try {
-        const res = await api.createPurchaseOrder(projectId, poData);
-        // Replace temp PO with server PO if needed, or mark synced
-        if (tempPoId) {
-          await db.orders.update(tempPoId, {
-            _syncStatus: 'synced',
-            id: res.purchaseOrder.id,
-            poNumber: res.purchaseOrder.poNumber,
-          });
-        }
-      } catch (err: any) {
-        if (err.message?.includes('Failed to fetch')) throw err;
-        if (tempPoId) {
-          await db.orders.update(tempPoId, { _syncStatus: 'synced' });
-        }
-      }
+      const res = await api.createPurchaseOrder(projectId, poData);
+      if (tempPoId) await db.orders.update(tempPoId, { _syncStatus: 'synced', id: res.purchaseOrder.id, poNumber: res.purchaseOrder.poNumber });
       break;
     }
 
     case 'reportIssue': {
-      const { issueId } = item.payload;
-      if (issueId) {
-        await db.issues.update(issueId, { _syncStatus: 'synced' });
-      }
-      break;
+      throw new Error('Site issue submission is not implemented by the backend API. This item remains unsynced.');
     }
 
     case 'ai_analysis': {
       const { projectId, prompt } = item.payload;
-      try {
-        await api.askQuestion(prompt, projectId);
-      } catch (err: any) {
-        if (err.message?.includes('Failed to fetch')) throw err;
-      }
+      await api.askQuestion(prompt, projectId);
       break;
     }
 

@@ -8,7 +8,6 @@ import { PortfolioMapView } from './components/portfolio/PortfolioMapView';
 import { CommandPalette } from './components/ai/CommandPalette';
 import { BusinessModelModal } from './components/business/BusinessModelModal';
 import { HandoverCertificateModal } from './components/operate/HandoverCertificateModal';
-import { DemoWalkthroughModal } from './components/demo/DemoWalkthroughModal';
 import { AskAIDialog } from './components/ai/AskAIDialog';
 import { SiteView } from './components/site/SiteView';
 import { SyncCenterDrawer } from './components/offline/SyncCenterDrawer';
@@ -17,8 +16,9 @@ import { seedLocalDataIfEmpty } from './lib/offline/db';
 import { registerServiceWorker } from './lib/offline/swRegistration';
 import { flushOutbox } from './lib/offline/sync';
 import { api, ProjectDetailResponse, ProcurementResponse, BuildingDetailResponse } from './lib/api';
-import { Project, Building, User, Role } from './types';
+import { Project, Building, User } from './types';
 import { Loader2 } from 'lucide-react';
+import { LoginView } from './components/auth/LoginView';
 
 export default function App() {
   const [currentModule, setCurrentModule] = useState<AppModule>('command_center');
@@ -28,25 +28,13 @@ export default function App() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [activeBuilding, setActiveBuilding] = useState<Building | null>(null);
 
-  const [currentUser, setCurrentUser] = useState<User>({
-    id: 'usr-1',
-    name: 'Engr. Babatunde Adeyemi',
-    email: 'babatunde@construx.internal',
-    role: 'SITE_ENGINEER',
-    title: 'Lead Structural & Site Engineer',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Pillar Data States
   const [projectDetail, setProjectDetail] = useState<ProjectDetailResponse | null>(null);
   const [procurementData, setProcurementData] = useState<ProcurementResponse | null>(null);
   const [buildingDetail, setBuildingDetail] = useState<BuildingDetailResponse | null>(null);
-
-  // Demo Runner States
-  const [demoStep, setDemoStep] = useState<number>(1);
-  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
-  const [lastActionReport, setLastActionReport] = useState('');
-  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
   // AI & Interactive Modals States
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -68,27 +56,28 @@ export default function App() {
     async function init() {
       try {
         setIsLoading(true);
+        if (!(await api.restoreSession())) return;
         const [projRes, bldgRes, userRes] = await Promise.all([
           api.getProjects(),
           api.getBuildings(),
           api.getCurrentUser(),
         ]);
 
-        setProjects(projRes.projects);
-        setBuildings(bldgRes.buildings);
-        setCurrentUser(userRes.user);
+        setProjects(projRes);
+        setBuildings(bldgRes);
+        setCurrentUser(userRes);
 
-        const vh = projRes.projects.find((p) => p.id === 'proj-victoria') || projRes.projects[0];
+        const vh = projRes[0];
         setActiveProject(vh);
 
-        const bldg = bldgRes.buildings[0];
+        const bldg = bldgRes[0];
         setActiveBuilding(bldg);
 
         if (vh) {
-          await loadProjectPillars(vh.id, projRes.projects);
+          await loadProjectPillars(vh.id, projRes);
         }
       } catch (err) {
-        console.error('Initial load error:', err);
+        setAuthError(err instanceof Error ? err.message : 'Unable to load account data.');
       } finally {
         setIsLoading(false);
       }
@@ -96,6 +85,25 @@ export default function App() {
 
     init();
   }, []);
+
+  useEffect(() => {
+    const logoutOnExpiry = () => { setCurrentUser(null); setProjects([]); setActiveProject(null); setAuthError('Your session expired. Please sign in again.'); };
+    window.addEventListener('construx:unauthorized', logoutOnExpiry);
+    return () => window.removeEventListener('construx:unauthorized', logoutOnExpiry);
+  }, []);
+
+  const handleLogin = async (email: string, password: string) => {
+    setAuthError(null);
+    const { user } = await api.login(email, password);
+    setCurrentUser(user);
+    const [projectList, buildingList] = await Promise.all([api.getProjects(), api.getBuildings()]);
+    setProjects(projectList);
+    setBuildings(buildingList);
+    const project = projectList[0];
+    setActiveProject(project ?? null);
+    setActiveBuilding(buildingList[0] ?? null);
+    if (project) await loadProjectPillars(project.id, projectList);
+  };
 
   const loadProjectPillars = async (projId: string, currentProjects?: Project[]) => {
     try {
@@ -122,7 +130,7 @@ export default function App() {
         setActiveBuilding(bldgRes.building);
       }
     } catch (err) {
-      console.error('Error loading project pillars:', err);
+      setAuthError(err instanceof Error ? err.message : 'Unable to load project data.');
     }
   };
 
@@ -141,74 +149,7 @@ export default function App() {
       const res = await api.getBuilding(bldg.id);
       setBuildingDetail(res);
     } catch (err) {
-      console.error('Error loading building:', err);
-    }
-  };
-
-  const handleSwitchRole = async (role: Role) => {
-    try {
-      const res = await api.switchRole(role);
-      setCurrentUser(res.user);
-    } catch (err) {
-      console.error('Error switching role:', err);
-    }
-  };
-
-  // Hackathon Demo Runner Execution
-  const handleExecuteDemoStep = async (stepNumber: number) => {
-    setIsDemoLoading(true);
-    try {
-      const res = await api.runDemoStep(stepNumber);
-      setDemoStep(stepNumber);
-      setLastActionReport(res.actionReport);
-
-      // Reload project state
-      if (activeProject) {
-        await loadProjectPillars(activeProject.id);
-      }
-
-      // Automatically switch views to follow the script narrative!
-      if (stepNumber === 1 || stepNumber === 2 || stepNumber === 6 || stepNumber === 7) {
-        setCurrentModule('build');
-      } else if (stepNumber === 3 || stepNumber === 4 || stepNumber === 5) {
-        setCurrentModule('supply');
-      } else if (stepNumber === 8 || stepNumber === 9) {
-        setCurrentModule('operate');
-        const bldgs = await api.getBuildings();
-        setBuildings(bldgs.buildings);
-        const vhBldg = bldgs.buildings.find((b) => b.id === 'bldg-victoria') || bldgs.buildings[0];
-        if (vhBldg) {
-          setActiveBuilding(vhBldg);
-          const bDetail = await api.getBuilding(vhBldg.id);
-          setBuildingDetail(bDetail);
-        }
-      }
-    } catch (err) {
-      console.error('Demo step error:', err);
-    } finally {
-      setIsDemoLoading(false);
-    }
-  };
-
-  const handleResetDemo = async () => {
-    setIsDemoLoading(true);
-    try {
-      await api.resetDemo();
-      setDemoStep(1);
-      setLastActionReport('Database reset to clean baseline (Victoria Heights 68% progress).');
-      setCurrentModule('command_center');
-
-      const [projRes, bldgRes] = await Promise.all([api.getProjects(), api.getBuildings()]);
-      setProjects(projRes.projects);
-      setBuildings(bldgRes.buildings);
-
-      const vh = projRes.projects.find((p) => p.id === 'proj-victoria') || projRes.projects[0];
-      setActiveProject(vh);
-      if (vh) await loadProjectPillars(vh.id);
-    } catch (err) {
-      console.error('Reset error:', err);
-    } finally {
-      setIsDemoLoading(false);
+      setAuthError(err instanceof Error ? err.message : 'Unable to load building data.');
     }
   };
 
@@ -217,12 +158,11 @@ export default function App() {
     if (!activeProject) return;
     try {
       const res = await api.triggerHandover(activeProject.id);
-      setLastActionReport('Handover successful! Project is now an active BuildTwin Digital Twin.');
 
       // Refresh project and buildings
       await loadProjectPillars(activeProject.id);
       const bldgs = await api.getBuildings();
-      setBuildings(bldgs.buildings);
+      setBuildings(bldgs);
       setActiveBuilding(res.building);
 
       const bDetail = await api.getBuilding(res.building.id);
@@ -230,7 +170,7 @@ export default function App() {
 
       setCurrentModule('operate');
     } catch (err) {
-      console.error('Handover error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Handover failed.');
     }
   };
 
@@ -243,11 +183,10 @@ export default function App() {
   }) => {
     if (!activeProject) return;
     try {
-      const res = await api.postSiteUpdate(activeProject.id, data);
-      setLastActionReport('Field observation logged. Risk evaluated.');
+      await api.postSiteUpdate(activeProject.id, data);
       await loadProjectPillars(activeProject.id);
     } catch (err) {
-      console.error('Site update error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Site update failed.');
     }
   };
 
@@ -258,7 +197,7 @@ export default function App() {
       await api.updateTask(activeProject.id, taskId, { status, progress });
       await loadProjectPillars(activeProject.id);
     } catch (err) {
-      console.error('Task update error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Task update failed.');
     }
   };
 
@@ -269,7 +208,7 @@ export default function App() {
       await api.createTask(activeProject.id, taskData);
       await loadProjectPillars(activeProject.id);
     } catch (err) {
-      console.error('Add task error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Task creation failed.');
     }
   };
 
@@ -284,10 +223,9 @@ export default function App() {
     if (!activeProject) return;
     try {
       await api.createPurchaseOrder(activeProject.id, data);
-      setLastActionReport(`Purchase order created for ${data.quantity} units.`);
       await loadProjectPillars(activeProject.id);
     } catch (err) {
-      console.error('PO creation error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Purchase order creation failed.');
     }
   };
 
@@ -300,11 +238,10 @@ export default function App() {
   }) => {
     if (!activeProject) return;
     try {
-      const res = await api.recordDelivery(activeProject.id, data);
-      setLastActionReport(res.message);
+      await api.recordDelivery(activeProject.id, data);
       await loadProjectPillars(activeProject.id);
     } catch (err) {
-      console.error('Delivery record error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Delivery recording failed.');
     }
   };
 
@@ -313,11 +250,10 @@ export default function App() {
     if (!activeBuilding) return;
     try {
       await api.createMaintenanceTask(activeBuilding.id, data);
-      setLastActionReport('Work order created and dispatched to facility crew.');
       const bDetail = await api.getBuilding(activeBuilding.id);
       setBuildingDetail(bDetail);
     } catch (err) {
-      console.error('Maintenance create error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Maintenance task creation failed.');
     }
   };
 
@@ -329,7 +265,7 @@ export default function App() {
       const bDetail = await api.getBuilding(activeBuilding.id);
       setBuildingDetail(bDetail);
     } catch (err) {
-      console.error('Maintenance update error:', err);
+      setAuthError(err instanceof Error ? err.message : 'Maintenance update failed.');
     }
   };
 
@@ -341,13 +277,13 @@ export default function App() {
       await api.checkScheduleRisk(activeProject.id);
       await loadProjectPillars(activeProject.id);
     } catch (err) {
-      console.error('AI check error:', err);
+      setAuthError(err instanceof Error ? err.message : 'AI analysis failed.');
     } finally {
       setIsAiLoading(false);
     }
   };
 
-  if (isLoading || !activeProject || !projectDetail || !procurementData) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0b0f14] flex flex-col items-center justify-center text-slate-300 gap-3">
         <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center animate-pulse border border-amber-500/30">
@@ -359,6 +295,15 @@ export default function App() {
         <p className="text-xs text-slate-500 font-mono">Synchronizing Build, Supply, and Operate telemetry...</p>
       </div>
     );
+  }
+
+  if (!currentUser) return <LoginView onLogin={handleLogin} error={authError} />;
+  if (!activeProject || !projectDetail || !procurementData) {
+    return <div role="status" className="min-h-screen bg-[#0b0f14] text-slate-200 flex flex-col items-center justify-center gap-3">
+      <p>{projects.length ? 'No project data is available yet.' : 'No projects available yet.'}</p>
+      {authError && <p role="alert" className="text-rose-300">{authError}</p>}
+      <button className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-slate-950" onClick={() => { void api.logout(); setCurrentUser(null); }}>Sign out</button>
+    </div>;
   }
 
   return (
@@ -374,17 +319,15 @@ export default function App() {
         activeBuilding={activeBuilding}
         onSelectBuilding={handleSelectBuilding}
         currentUser={currentUser}
-        onSwitchRole={handleSwitchRole}
-        onOpenDemo={() => setIsDemoModalOpen(true)}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onOpenPricing={() => setIsPricingModalOpen(true)}
-        onResetDemo={handleResetDemo}
-        demoStep={demoStep}
         onOpenSyncCenter={() => setIsSyncCenterOpen(true)}
+        onLogout={() => { void api.logout().finally(() => { setCurrentUser(null); setProjects([]); setActiveProject(null); setProjectDetail(null); setProcurementData(null); }); }}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {authError && <div role="alert" className="mb-5 rounded-xl border border-rose-500/40 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">{authError}<button className="ml-3 underline" onClick={() => setAuthError(null)}>Dismiss</button></div>}
         {/* 1. COMMAND CENTER (Home) */}
         {currentModule === 'command_center' && (
           <CommandCenterView
@@ -399,7 +342,6 @@ export default function App() {
             }}
             onOpenHandoverCert={() => setIsHandoverCertOpen(true)}
             onOpenPricing={() => setIsPricingModalOpen(true)}
-            onOpenDemo={() => setIsDemoModalOpen(true)}
           />
         )}
 
@@ -435,16 +377,13 @@ export default function App() {
             alerts={procurementData.alerts}
             onCreatePO={handleCreatePO}
             onRecordDelivery={handleRecordDelivery}
-            onAiSuggest={(matId) => {
-              const mat = procurementData.materials.find((m) => m.id === matId);
-              if (mat) {
-                handleCreatePO({
-                  materialId: mat.id,
-                  supplierId: procurementData.suppliers[0].id,
-                  quantity: Math.max(0, mat.quantityRequired - mat.quantityDelivered) || 1000,
-                  notes: 'Pre-filled via AI procurement suggestion.',
-                });
-              }
+            onAiSuggest={async (matId) => {
+              try {
+                const result = await api.suggestProcurement(activeProject.id) as { recommendations?: Array<{ materialId: string; supplierId?: string; quantity: number }> };
+                const suggestion = result.recommendations?.find((item) => item.materialId === matId);
+                if (!suggestion?.supplierId || suggestion.quantity <= 0) throw new Error('The backend returned no actionable supplier and quantity for this material.');
+                await handleCreatePO({ materialId: matId, supplierId: suggestion.supplierId, quantity: suggestion.quantity });
+              } catch (err) { setAuthError(err instanceof Error ? err.message : 'Procurement suggestion failed.'); }
             }}
           />
         )}
@@ -521,7 +460,6 @@ export default function App() {
         onOpenSimulator={() => setCurrentModule('build')}
         onOpenHandoverCert={() => setIsHandoverCertOpen(true)}
         onOpenPricing={() => setIsPricingModalOpen(true)}
-        onOpenDemo={() => setIsDemoModalOpen(true)}
         projects={projects}
         activeProject={activeProject}
         buildings={buildings}
@@ -545,15 +483,6 @@ export default function App() {
       )}
 
       {/* Global Hackathon Demo Script Walkthrough Modal */}
-      <DemoWalkthroughModal
-        isOpen={isDemoModalOpen}
-        onClose={() => setIsDemoModalOpen(false)}
-        currentStep={demoStep}
-        onExecuteStep={handleExecuteDemoStep}
-        onResetDemo={handleResetDemo}
-        isLoading={isDemoLoading}
-        lastActionReport={lastActionReport}
-      />
 
       {/* Global Ask CONSTRUX AI Dialog */}
       <AskAIDialog

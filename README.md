@@ -4,7 +4,21 @@
 
 > A single platform that connects **project management**, **construction procurement/supply chain**, and **building digital twins** into one intelligent system — from the first construction task to the long-term operation of the building.
 
-This README is the shared reference doc for both people working on this project. It covers the product concept, the full technical architecture, the frontend structure, the backend structure, how data flows between them, and — at the very end — a ready-to-paste prompt you can give to an AI coding assistant (Claude, Cursor, etc.) to scaffold the whole thing.
+This repository currently runs a Vite + React frontend at the root and a separate NestJS + Prisma + PostgreSQL API in `backend/`. The product/architecture notes below are conceptual and may describe features not yet represented by persisted API fields. For verified setup and deployment steps, use the operational guide below and [backend/README.md](backend/README.md).
+
+## Run the connected application locally (Windows PowerShell)
+
+1. Copy `backend/.env.example` to `backend/.env`; configure a local database URL and two different random JWT secrets of at least 32 characters. Copy `.env.example` to `.env` if you want to configure a direct frontend API URL; the default Vite development proxy targets `http://localhost:4000`.
+2. Start PostgreSQL: `docker compose -f backend/docker-compose.yml up -d` (requires Docker Desktop), or point `DATABASE_URL` at an existing PostgreSQL service.
+3. Install dependencies: `npm install` and `npm install --prefix backend`.
+4. Create schema and local sample data: `npm --prefix backend run db:setup`.
+5. In separate terminals from the repository root, run `npm run backend:dev` and `npm run dev`. Open `http://localhost:5173`; check API readiness at `http://localhost:4000/health`.
+
+To build: `npm run lint`, `npm run build`, and `npm --prefix backend run build`. Production frontend hosting must provide SPA fallback to `index.html`, set `VITE_API_BASE_URL` at build time, and serve HTTPS. Configure backend `FRONTEND_URL` to exact allowed origins, production secrets and `DATABASE_URL` in deployment secrets. The backend Dockerfile applies Prisma migrations on startup. Never run the demo seed in production.
+
+Local development seed accounts are documented in [backend/README.md](backend/README.md); their shared demo password is not safe for deployment. API login is required before protected screens load. The production frontend no longer offers role switching or database reset/demo-step controls.
+
+Known deployment TODOs: durable object storage is required before production use of uploads; configure an Anthropic API key for natural-language AI; specify the production frontend/API origins; and validate a fresh-database migration against an available PostgreSQL service. Live building sensor telemetry and market-price feeds are not implemented by the current API.
 
 ---
 

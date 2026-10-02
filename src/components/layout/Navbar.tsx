@@ -4,17 +4,13 @@ import {
   Boxes,
   HardHat,
   Sparkles,
-  Play,
-  RotateCcw,
-  CheckCircle2,
-  ChevronDown,
   TrendingUp,
   LayoutDashboard,
   DollarSign,
   Command,
   Smartphone,
 } from 'lucide-react';
-import { Project, Building, User, Role } from '../../types';
+import { Project, Building, User } from '../../types';
 import { ConnectionIndicator } from '../offline/ConnectionIndicator';
 import { PWAInstallButton } from '../pwa/PWAInstallButton';
 
@@ -30,13 +26,10 @@ interface NavbarProps {
   activeBuilding: Building | null;
   onSelectBuilding: (bldg: Building) => void;
   currentUser: User;
-  onSwitchRole: (role: Role) => void;
-  onOpenDemo: () => void;
   onOpenCommandPalette: () => void;
   onOpenPricing: () => void;
-  onResetDemo: () => void;
-  demoStep: number;
   onOpenSyncCenter: () => void;
+  onLogout: () => void;
   onOpenBoQImport?: () => void;
 }
 
@@ -50,13 +43,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeBuilding,
   onSelectBuilding,
   currentUser,
-  onSwitchRole,
-  onOpenDemo,
   onOpenCommandPalette,
   onOpenPricing,
-  onResetDemo,
-  demoStep,
   onOpenSyncCenter,
+  onLogout,
   onOpenBoQImport,
 }) => {
   return (
@@ -251,65 +241,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Pricing</span>
           </button>
 
-          {/* Hackathon Demo Walkthrough Button */}
-          <button
-            onClick={onOpenDemo}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold shadow-md shadow-orange-950/40 border border-amber-400/40 transition-transform active:scale-95"
-            title="Interactive 9-step Hackathon Demo Script"
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span className="hidden md:inline">Demo Script</span>
-            <span className="bg-black/30 text-amber-200 text-[10px] px-1.5 py-0.2 rounded font-mono">
-              {demoStep}/9
-            </span>
-          </button>
-
-          {/* Reset Demo */}
-          <button
-            onClick={onResetDemo}
-            title="Reset demo data to initial Victoria Heights state"
-            className="p-1.5 rounded-xl bg-[#121821] hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-[#232c3b] text-xs"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-
-          {/* User Role Switcher Dropdown */}
-          <div className="relative group">
-            <div className="flex items-center gap-2 pl-2 border-l border-[#232c3b] cursor-pointer">
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-8 h-8 rounded-full border border-amber-500/40 object-cover"
-              />
+          <div className="flex items-center gap-2 pl-2 border-l border-[#232c3b]">
+            {currentUser.avatar && <img src={currentUser.avatar} alt="" className="w-8 h-8 rounded-full border border-amber-500/40 object-cover" />}
               <div className="hidden lg:block text-left text-xs">
                 <div className="font-semibold text-slate-200 truncate max-w-[105px]">
-                  {currentUser.name.split(' ')[1] || currentUser.name}
+                  {currentUser.name}
                 </div>
                 <div className="text-[10px] text-amber-400 font-mono">
                   {currentUser.role.replace('_', ' ')}
                 </div>
               </div>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
-            </div>
-
-            {/* Dropdown Menu */}
-            <div className="absolute right-0 top-full mt-2 w-56 bg-[#121821] border border-[#232c3b] rounded-2xl shadow-2xl p-2 hidden group-hover:block z-50">
-              <div className="px-2 py-1 text-[10px] font-mono uppercase text-slate-500">Switch Demo Role</div>
-              {(['SITE_ENGINEER', 'PROCUREMENT_OFFICER', 'FACILITY_MANAGER', 'ADMIN'] as Role[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => onSwitchRole(r)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
-                    currentUser.role === r
-                      ? 'bg-amber-500/20 text-amber-300 font-semibold'
-                      : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  <span>{r.replace('_', ' ')}</span>
-                  {currentUser.role === r && <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />}
-                </button>
-              ))}
-            </div>
+              <button type="button" onClick={onLogout} className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800" aria-label="Sign out">Sign out</button>
           </div>
         </div>
       </div>

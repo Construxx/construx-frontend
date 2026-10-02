@@ -1,0 +1,285 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SITE_ENGINEER
+  PROCUREMENT_OFFICER
+  VIEWER
+}
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  HANDED_OVER
+}
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+enum MaterialStatus {
+  NOT_ORDERED
+  ORDERED
+  PARTIAL
+  DELIVERED
+}
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  DELIVERED
+  CANCELLED
+}
+enum SystemType {
+  ELECTRICAL
+  PLUMBING
+  HVAC
+}
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  passwordHash    String
+  role            Role     @default(VIEWER)
+  createdAt       DateTime @default(now())
+  projects        Project[] @relation("ProjectCreator")
+  tasks           Task[]
+  siteUpdates     SiteUpdate[]
+  documents       Document[]
+  maintenanceTasks MaintenanceTask[]
+}
+
+model Project {
+  id              String        @id @default(uuid())
+  name            String
+  type            String
+  budgetTotal     Float         @default(0)
+  budgetSpent     Float         @default(0)
+  startDate       DateTime?
+  endDate         DateTime?
+  status          ProjectStatus @default(PLANNING)
+  progressPercent Int           @default(0)
+  createdById     String
+  createdBy       User          @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+  tasks           Task[]
+  milestones      Milestone[]
+  siteUpdates     SiteUpdate[]
+  documents       Document[]
+  materials       Material[]
+  purchaseOrders  PurchaseOrder[]
+  inventoryLogs   InventoryLog[]
+  building        Building?
+  alerts          AIAlert[]
+}
+
+model Task {
+  id           String     @id @default(uuid())
+  projectId    String
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  status       TaskStatus @default(TODO)
+  assignedToId String?
+  assignedTo   User?      @relation(fields: [assignedToId], references: [id])
+  dueDate      DateTime?
+  createdAt    DateTime   @default(now())
+  // Handover mapping: where this work lives in the finished building
+  level          Int?
+  roomName       String?
+  systemType     SystemType?
+  equipmentName  String?
+  equipmentModel String?
+}
+
+model Milestone {
+  id         String          @id @default(uuid())
+  projectId  String
+  project    Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String
+  status     MilestoneStatus @default(PENDING)
+  orderIndex Int
+}
+
+model SiteUpdate {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  note      String
+  photoUrl  String?
+  materialId   String?
+  remainingQty Float?
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id           String  @id @default(uuid())
+  projectId    String
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  type         String
+  fileUrl      String
+  originalName String?
+  mimeType     String?
+  uploadedById String
+  uploadedBy   User    @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model Material {
+  id                String         @id @default(uuid())
+  projectId         String
+  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name              String
+  unit              String
+  quantityRequired  Float
+  quantityDelivered Float          @default(0)
+  quantityOnSite    Float          @default(0)
+  dailyUsage        Float          @default(0)
+  status            MaterialStatus @default(NOT_ORDERED)
+  purchaseOrders    PurchaseOrder[]
+  inventoryLogs     InventoryLog[]
+  alerts            AIAlert[]
+}
+
+model Supplier {
+  id                String   @id @default(uuid())
+  name              String
+  contactInfo       String?
+  materialsSupplied String[]
+  leadTimeDays      Int      @default(7)
+  purchaseOrders    PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id               String              @id @default(uuid())
+  projectId        String
+  project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialId       String
+  material         Material            @relation(fields: [materialId], references: [id])
+  supplierId       String
+  supplier         Supplier            @relation(fields: [supplierId], references: [id])
+  quantity         Float
+  cost             Float?
+  status           PurchaseOrderStatus @default(ORDERED)
+  orderedAt        DateTime            @default(now())
+  expectedDelivery DateTime?
+  deliveredAt      DateTime?
+}
+
+model InventoryLog {
+  id         String   @id @default(uuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id])
+  changeQty  Float
+  reason     String
+  createdAt  DateTime @default(now())
+}
+
+model Building {
+  id             String   @id @default(uuid())
+  projectId      String   @unique
+  project        Project  @relation(fields: [projectId], references: [id])
+  name           String
+  totalFloors    Int
+  handedOverAt   DateTime @default(now())
+  floors         Floor[]
+  maintenanceTasks MaintenanceTask[]
+  alerts         AIAlert[]
+}
+
+model Floor {
+  id          String   @id @default(uuid())
+  buildingId  String
+  building    Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  floorNumber Int
+  name        String
+  rooms       Room[]
+}
+
+model Room {
+  id      String  @id @default(uuid())
+  floorId String
+  floor   Floor   @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  name    String
+  areaSqm Float?
+  equipment        Equipment[]
+  systems          BuildingSystem[]
+  maintenanceTasks MaintenanceTask[]
+}
+
+model Equipment {
+  id              String    @id @default(uuid())
+  roomId          String
+  room            Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  name            String
+  model           String?
+  status          String    @default("OPERATIONAL")
+  lastMaintenance DateTime?
+  nextMaintenance DateTime?
+  maintenanceIntervalDays Int @default(180)
+  maintenanceTasks MaintenanceTask[]
+}
+
+model BuildingSystem {
+  id     String     @id @default(uuid())
+  roomId String
+  room   Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  type   SystemType
+  status String     @default("OPERATIONAL")
+}
+
+model MaintenanceTask {
+  id           String   @id @default(uuid())
+  buildingId   String
+  building     Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  roomId       String?
+  room         Room?    @relation(fields: [roomId], references: [id])
+  equipmentId  String?
+  equipment    Equipment? @relation(fields: [equipmentId], references: [id])
+  description  String
+  assignedToId String?
+  assignedTo   User?    @relation(fields: [assignedToId], references: [id])
+  status       TaskStatus @default(TODO)
+  dueDate      DateTime?
+}
+
+model AIAlert {
+  id         String        @id @default(uuid())
+  projectId  String?
+  project    Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  buildingId String?
+  building   Building?     @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  materialId String?
+  material   Material?     @relation(fields: [materialId], references: [id])
+  type       String
+  message    String
+  severity   AlertSeverity @default(MEDIUM)
+  suggestion Json?
+  source     String        @default("RULE")
+  refId      String?
+  resolved   Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+}

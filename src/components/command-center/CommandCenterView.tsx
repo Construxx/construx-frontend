@@ -29,7 +29,6 @@ interface CommandCenterViewProps {
   onOpenSimulator: () => void;
   onOpenHandoverCert: () => void;
   onOpenPricing: () => void;
-  onOpenDemo: () => void;
 }
 
 export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
@@ -42,10 +41,11 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
   onOpenSimulator,
   onOpenHandoverCert,
   onOpenPricing,
-  onOpenDemo,
 }) => {
   const unresolvedAlerts = alerts.filter((a) => !a.resolved);
   const criticalMaterials = materials.filter((m) => m.status === 'critical_shortage');
+  const pipeline = projects.reduce((sum, project) => sum + project.budgetTotal, 0);
+  const constructionProjects = projects.filter((project) => project.status !== 'handed_over' && project.status !== 'completed').length;
 
   return (
     <div className="space-y-6">
@@ -56,7 +56,7 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>AI MORNING BRIEFING // LAGOS CLUSTER</span>
+                <span>PROJECT OPERATIONS // LIVE DATA</span>
               </span>
               <span className="text-xs text-slate-400 font-mono">
                 {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
@@ -68,15 +68,15 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Active oversight across <strong>5 Lagos development sites</strong> with <strong>₦2.21B</strong> in total asset pipeline. Victoria Heights is at <strong>68% physical progress</strong> with ₦295M deployed. Level 4 Electrical cabling has an active <strong>5-day critical path variance</strong> pending delivery of 3,400m armoured copper cable. Marina Waterfront Centre operates normally as a BuildTwin Digital Twin.
+              Live oversight across <strong>{projects.length} projects</strong> with a recorded budget pipeline of <strong>₦{(pipeline / 1e9).toFixed(2)}B</strong>. {activeProject.name} is at <strong>{activeProject.progressPercent}% progress</strong>, with <strong>{unresolvedAlerts.length} unresolved alerts</strong> and <strong>{criticalMaterials.length} critical material shortages</strong>.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-mono">
               <span className="bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300">
-                Active Projects: <strong className="text-white">4 Construction</strong>
+                Active Projects: <strong className="text-white">{constructionProjects}</strong>
               </span>
               <span className="bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300">
-                Operating Twins: <strong className="text-purple-400">1 Handed Over</strong>
+                Operating Twins: <strong className="text-purple-400">{buildings.length}</strong>
               </span>
               <span className="bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300">
                 Unresolved AI Flags: <strong className="text-amber-400">{unresolvedAlerts.length} Attention</strong>
@@ -86,18 +86,11 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
 
           <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
             <button
-              onClick={onOpenDemo}
-              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-950/40 flex items-center justify-center gap-2 active:scale-95 transition-transform"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Launch 9-Step Demo Flow</span>
-            </button>
-            <button
               onClick={() => onNavigate('build')}
               className="px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-950/40 flex items-center justify-center gap-2 active:scale-95 transition-transform"
             >
               <HardHat className="w-4 h-4" />
-              <span>Inspect Victoria Heights</span>
+              <span>Inspect {activeProject.name}</span>
             </button>
           </div>
         </div>
@@ -171,22 +164,22 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
                 Procurement & Price Desk
               </h3>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Naira commodity price tracker, AI automated purchase orders, and delivery receiving checklist.
+                Material availability, supplier directory, purchase orders, and delivery receiving.
               </p>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-slate-800/80 text-xs font-mono">
               <div className="flex justify-between text-slate-300">
                 <span>Critical Deficit:</span>
-                <span className="text-rose-400 font-bold">Armoured Cable (-3,400m)</span>
+                <span className="text-rose-400 font-bold">{criticalMaterials.length} critical shortages</span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Dangote Cement:</span>
-                <span className="text-amber-400 font-bold">₦8,400 / bag (+8.4%)</span>
+                <span>Supplier records:</span>
+                <span className="text-amber-400 font-bold">{materials.length} tracked materials</span>
               </div>
               <div className="flex justify-between text-slate-300">
                 <span>Suppliers Directory:</span>
-                <span className="text-emerald-400 font-bold">5 Verified Lagos Partners</span>
+                <span className="text-emerald-400 font-bold">Supplier records in Supply</span>
               </div>
             </div>
           </div>
@@ -217,22 +210,22 @@ export const CommandCenterView: React.FC<CommandCenterViewProps> = ({
                 BuildTwin Digital Operating Layer
               </h3>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Post-handover lifecycle operations: isometric 12-floor twin, Room 204 Daikin VRV maintenance, and QR codes.
+                Post-handover asset inventory, room systems, maintenance tasks, and alerts from recorded building data.
               </p>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-slate-800/80 text-xs font-mono">
               <div className="flex justify-between text-slate-300">
                 <span>Active Twin:</span>
-                <span className="text-white font-bold">{buildings[0]?.name || 'Victoria Heights'}</span>
+                <span className="text-white font-bold">{buildings[0]?.name || 'No building'}</span>
               </div>
               <div className="flex justify-between text-slate-300">
                 <span>Building Health:</span>
-                <span className="text-emerald-400 font-bold">{buildings[0]?.healthScore || 94}% Optimal</span>
+                <span className="text-emerald-400 font-bold">{buildings[0] ? `${buildings[0].activeAlertsCount} open alerts` : 'No data'}</span>
               </div>
               <div className="flex justify-between text-slate-300">
                 <span>Active Work Orders:</span>
-                <span className="text-purple-300 font-bold">1 AI Preventive Service</span>
+                <span className="text-purple-300 font-bold">{buildings.length} building records</span>
               </div>
             </div>
           </div>

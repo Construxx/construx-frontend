@@ -22,7 +22,7 @@ export const AskAIDialog: React.FC<AskAIDialogProps> = ({
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string; time: string }>>([
     {
       sender: 'ai',
-      text: `Hello! I am your CONSTRUX Intelligence Assistant. I have live access to Project OS, Supply OS, and BuildTwin telemetry. Ask me about critical path schedules, material shortages, purchase orders, or Room 204 digital twin maintenance.`,
+      text: 'Hello! I can help review project data, active tasks, materials, and building records when a project context is selected. Ask about delays, procurement, or maintenance follow-up.',
       time: 'Just now',
     },
   ]);
@@ -30,10 +30,10 @@ export const AskAIDialog: React.FC<AskAIDialogProps> = ({
   if (!isOpen) return null;
 
   const quickPrompts = [
-    'Why is Level 4 electrical delayed by 5 days?',
-    'Check electrical cable stock vs 14-day burn rate',
-    'What equipment in Room 204 requires preventive maintenance?',
-    'Explain how data flows from PO to Construction Task to Digital Twin',
+    'Which tasks are most at risk of delay?',
+    'What materials are running low or delayed?',
+    'What building equipment needs attention?',
+    'Summarize the current project status',
   ];
 
   const handleSend = async (queryText?: string) => {
@@ -147,7 +147,7 @@ export const AskAIDialog: React.FC<AskAIDialogProps> = ({
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               </div>
               <div className="bg-slate-950 border border-slate-800 rounded-2xl rounded-tl-none p-3.5 text-xs text-slate-400 flex items-center gap-2">
-                <span>Analyzing cross-system data streams with Gemini 3.8 Flash...</span>
+                <span>Reviewing the selected project context and relevant records...</span>
               </div>
             </div>
           )}

@@ -56,17 +56,15 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
   onCreateMaintenance,
   onUpdateMaintenance,
 }) => {
-  const [selectedFloorNumber, setSelectedFloorNumber] = useState<number>(2);
-  const [selectedRoomId, setSelectedRoomId] = useState<string>('rm-victoria-204');
+  const [selectedFloorNumber, setSelectedFloorNumber] = useState<number | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [activeRoomTab, setActiveRoomTab] = useState<'equipment' | 'systems' | 'maintenance'>('equipment');
 
   // New maintenance task modal
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [showCertModal, setShowCertModal] = useState(false);
-  const [newTitle, setNewTitle] = useState('Daikin VRV Coil Cleaning & Filter Swap');
-  const [newDesc, setNewDesc] = useState('Replace secondary electrostatic intake filters and clean coil delta-P sensor.');
-  const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('high');
-  const [newAssignee, setNewAssignee] = useState('David Sterling (Facility Engineer)');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDesc, setNewDesc] = useState('');
 
   const currentFloor = floors.find((f) => f.floorNumber === selectedFloorNumber) || floors[0];
   const floorRooms = rooms.filter((r) => r.floorId === currentFloor?.id);
@@ -89,11 +87,9 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
 
     onCreateMaintenance({
       roomId: currentRoom.id,
-      equipmentId: roomEquipment[1]?.id,
+      equipmentId: roomEquipment[0]?.id,
       title: newTitle,
       description: newDesc,
-      priority: newPriority,
-      assignedTo: newAssignee,
       originAiAlertId: matchedAlert?.id,
     });
 
@@ -102,18 +98,12 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
 
   const handle1ClickAiMaintenance = () => {
     if (!currentRoom) return;
-    const matchedAlert = alerts.find(
-      (a) => a.metadata?.roomNumber === currentRoom.roomNumber && !a.resolved
-    );
-
     onCreateMaintenance({
       roomId: currentRoom.id,
       equipmentId: roomEquipment[1]?.id || roomEquipment[0]?.id,
-      title: 'AI Preventive Work Order: Daikin VRV Filter Service',
-      description: 'Clean electrostatic intake filter mesh and verify compressor delta-P pressure per AI maintenance advisor.',
-      priority: 'high',
-      assignedTo: 'David Sterling',
-      originAiAlertId: matchedAlert?.id,
+      title: 'Maintenance recommended by alert',
+      description: roomAlerts[0]?.message ?? 'Review and service this equipment based on its recorded maintenance dates.',
+      originAiAlertId: roomAlerts[0]?.id,
     });
   };
 
@@ -127,9 +117,9 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
               <span className="text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full">
                 BUILDTWIN // DIGITAL OPERATING LAYER
               </span>
-              <span className="text-xs text-slate-400 font-mono">Contract: {building.handoverContractRef}</span>
+              {building.handoverContractRef && <span className="text-xs text-slate-400 font-mono">Contract: {building.handoverContractRef}</span>}
               <span className="text-slate-600">•</span>
-              <span className="text-xs text-emerald-400 font-semibold">{building.energyRating}</span>
+              {building.energyRating && <span className="text-xs text-emerald-400 font-semibold">{building.energyRating}</span>}
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
@@ -156,9 +146,9 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
 
             <div className="flex items-center gap-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
               <div className="text-right">
-                <div className="text-[10px] font-mono text-slate-400 uppercase">Building Health Index</div>
-                <div className="text-2xl font-black text-emerald-400 mt-0.5">{building.healthScore}%</div>
-                <div className="text-[10px] font-mono text-emerald-300">Optimal Operating State</div>
+                <div className="text-[10px] font-mono text-slate-400 uppercase">Unresolved Alerts</div>
+                <div className="text-2xl font-black text-emerald-400 mt-0.5">{building.activeAlertsCount}</div>
+                <div className="text-[10px] font-mono text-emerald-300">Recorded by the API</div>
               </div>
               <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <Activity className="w-6 h-6 animate-pulse" />
@@ -167,39 +157,8 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
           </div>
         </div>
 
-        {/* Quick System Telemetry Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80 text-xs">
-          <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 flex items-center gap-3">
-            <Thermometer className="w-4 h-4 text-amber-400" />
-            <div>
-              <div className="text-[10px] font-mono text-slate-400">Mean Indoor Temp</div>
-              <div className="font-bold text-white">22.4 °C (Set 22.0 °C)</div>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 flex items-center gap-3">
-            <Zap className="w-4 h-4 text-amber-400" />
-            <div>
-              <div className="text-[10px] font-mono text-slate-400">Active Power Demand</div>
-              <div className="font-bold text-white">164.2 kW (0.99 PF)</div>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 flex items-center gap-3">
-            <Wind className="w-4 h-4 text-cyan-400" />
-            <div>
-              <div className="text-[10px] font-mono text-slate-400">Indoor Air Quality</div>
-              <div className="font-bold text-emerald-400">24 AQI (Clean Air)</div>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 flex items-center gap-3">
-            <ShieldAlert className="w-4 h-4 text-emerald-400" />
-            <div>
-              <div className="text-[10px] font-mono text-slate-400">Fire & Safety Loops</div>
-              <div className="font-bold text-emerald-400">100% Armed & Normal</div>
-            </div>
-          </div>
+        <div className="mt-6 border-t border-slate-800/80 pt-4 text-xs text-slate-400" role="status">
+          Live temperature, energy, air-quality, and fire-panel telemetry is not available because no sensor integration is configured.
         </div>
       </div>
 
@@ -216,7 +175,7 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
                   <span className="text-[10px] font-mono uppercase bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded-full font-bold">
                     BUILDTWIN AI PREVENTIVE MAINTENANCE
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">Room 204 Telemetry</span>
+                  <span className="text-[10px] font-mono text-slate-400">Selected Room Context</span>
                 </div>
                 <h3 className="text-sm font-bold text-white tracking-wide">{roomAlerts[0].title}</h3>
                 <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">{roomAlerts[0].message}</p>
@@ -243,7 +202,7 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
         <div className="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
           <div className="flex items-center justify-between px-1 mb-2">
             <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400">Floor Stack</div>
-            <span className="text-[10px] font-mono text-slate-500">12 Levels</span>
+            <span className="text-[10px] font-mono text-slate-500">{floors.length} Levels</span>
           </div>
 
           <div className="space-y-1 max-h-[560px] overflow-y-auto pr-1">
@@ -464,13 +423,9 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
                           </div>
 
                           <div className="text-[11px] text-slate-400 flex items-center gap-3 pt-1">
-                            <span>Runtime: {eq.runtimeHours.toLocaleString()} hrs</span>
-                            <span>•</span>
-                            <span>Last Service: {eq.lastMaintenance}</span>
-                            <span>•</span>
-                            <span className={isWarning ? 'text-amber-300 font-bold' : ''}>
-                              Next Service: {eq.nextMaintenance}
-                            </span>
+                            {eq.lastMaintenance && <span>Last Service: {new Date(eq.lastMaintenance).toLocaleDateString()}</span>}
+                            {eq.nextMaintenance && <span className={isWarning ? 'text-amber-300 font-bold' : ''}>Next Service: {new Date(eq.nextMaintenance).toLocaleDateString()}</span>}
+                            {!eq.lastMaintenance && !eq.nextMaintenance && <span>Maintenance dates not recorded</span>}
                           </div>
                         </div>
 
@@ -483,14 +438,7 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
                               Service Unit
                             </button>
                           )}
-                          <button
-                            onClick={() => {
-                              alert(`BIM Specification Sheet:\n${eq.name}\nModel: ${eq.model}\nInstalled: ${eq.installDate}`);
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
-                          >
-                            BIM Specs
-                          </button>
+                          {eq.model && <span className="px-2.5 py-1.5 text-slate-400 text-xs">Model {eq.model}</span>}
                         </div>
                       </div>
                     );
@@ -539,7 +487,7 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
                 <div className="space-y-3">
                   {roomMaintenance.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-400 border border-slate-800 rounded-xl">
-                      No active maintenance work orders for Room {currentRoom.roomNumber}.
+                      No maintenance work orders recorded for {currentRoom.name}.
                     </div>
                   ) : (
                     roomMaintenance.map((m) => {
@@ -553,13 +501,10 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-white text-xs">{m.title}</span>
-                              <span className="text-[10px] font-mono uppercase text-amber-400 bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-800">
-                                {m.priority}
-                              </span>
                             </div>
                             <p className="text-xs text-slate-300 font-sans">{m.description}</p>
                             <div className="text-[10px] font-mono text-slate-400">
-                              Assigned to {m.assignedTo} • Due {m.dueDate}
+                              {m.assignedTo && `Assigned to ${m.assignedTo}`}{m.assignedTo && m.dueDate ? ' • ' : ''}{m.dueDate ? `Due ${new Date(m.dueDate).toLocaleDateString()}` : 'No due date'}
                             </div>
                           </div>
 
@@ -621,30 +566,7 @@ export const BuildTwinView: React.FC<BuildTwinViewProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-mono text-slate-300 mb-1">Priority</label>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-slate-300 mb-1">Assigned Technician</label>
-                  <input
-                    type="text"
-                    value={newAssignee}
-                    onChange={(e) => setNewAssignee(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
+              <p className="text-xs text-slate-400">The current API stores a description, status, room/equipment, and due date. Priority and technician assignment are not available.</p>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button

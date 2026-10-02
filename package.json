@@ -1,13 +1,17 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "react-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview",
-    "start": "tsx server.ts",
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "vite preview --host 0.0.0.0",
+    "backend:dev": "npm --prefix backend run start:dev",
+    "backend:build": "npm --prefix backend run build",
+    "db:setup": "npm --prefix backend run db:setup",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },
@@ -35,9 +39,15 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "@google/genai@2.24.0": true,
+    "core-js@3.50.0": true,
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.6": true
   }
 }

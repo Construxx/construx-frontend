@@ -48,104 +48,37 @@ export const PortfolioMapView: React.FC<PortfolioMapViewProps> = ({
   onSelectBuilding,
   onNavigateToModule,
 }) => {
-  const [selectedPinId, setSelectedPinId] = useState<string>('vh-pin');
-
   const locations: MapLocation[] = [
-    {
-      id: 'vh-pin',
-      name: 'Victoria Heights',
-      code: 'VH-2026',
-      zone: 'Victoria Island, Lagos',
-      type: 'project',
-      status: 'at_risk',
-      budget: 430000000,
-      spent: 295000000,
-      progress: 68,
-      floors: 12,
-      contractor: 'Julius Berger & Cappa D’Alberto JV',
-      x: 48,
-      y: 62,
-      riskNote: 'Level 4 electrical cable deficit (5-day variance). In progress.',
-      refId: 'proj-victoria',
-    },
-    {
-      id: 'mwc-pin',
-      name: 'Marina Waterfront Centre',
-      code: 'MWC-2025',
-      zone: 'Marina CBD, Lagos Island',
-      type: 'building',
-      status: 'handed_over',
-      budget: 820000000,
-      spent: 780000000,
-      progress: 100,
-      floors: 18,
-      contractor: 'El-Alan Construction Co.',
-      x: 36,
-      y: 54,
-      riskNote: 'Active BuildTwin Digital Twin. Optimal health score (94%).',
-      refId: 'bldg-marina',
-    },
-    {
-      id: 'lih-pin',
-      name: 'Lekki Innovation Hub',
-      code: 'LIH-2026',
-      zone: 'Lekki Phase 1 / Free Zone',
-      type: 'project',
-      status: 'on_track',
-      budget: 310000000,
-      spent: 110000000,
-      progress: 32,
-      floors: 6,
-      contractor: 'Dredging & Heavy Civil Consortium',
-      x: 68,
-      y: 68,
-      riskNote: 'Piling complete, superstructure columns underway.',
-      refId: 'proj-lekki',
-    },
-    {
-      id: 'ikoyi-pin',
-      name: 'Ikoyi Royal Terraces',
-      code: 'IRT-2026',
-      zone: 'Ikoyi, Lagos',
-      type: 'project',
-      status: 'on_track',
-      budget: 650000000,
-      spent: 510000000,
-      progress: 79,
-      floors: 10,
-      contractor: 'Costain West Africa',
-      x: 52,
-      y: 48,
-      riskNote: 'MEP rough-in verified. Façade glazing underway.',
-      refId: 'proj-victoria',
-    },
-    {
-      id: 'eko-pin',
-      name: 'Eko Atlantic Financial Tower',
-      code: 'EAT-2027',
-      zone: 'Eko Atlantic City, Lagos',
-      type: 'project',
-      status: 'on_track',
-      budget: 1250000000,
-      spent: 380000000,
-      progress: 28,
-      floors: 26,
-      contractor: 'South Energyx Engineering',
-      x: 42,
-      y: 72,
-      riskNote: 'Deep foundation piles load-tested successfully.',
-      refId: 'proj-victoria',
-    },
+    ...projects.map((project, index) => ({
+      id: `project-${project.id}`, name: project.name, code: project.code || project.id.slice(0, 8), zone: project.location || 'Location not set',
+      type: 'project' as const, status: project.status === 'handed_over' ? 'handed_over' as const : project.status === 'at_risk' || project.status === 'delayed' ? 'at_risk' as const : 'on_track' as const,
+      budget: project.budgetTotal, spent: project.budgetSpent, progress: project.progressPercent, floors: project.floorsTotal,
+      contractor: project.contractor || 'Contractor not set', x: 20 + ((index * 17) % 65), y: 25 + ((index * 23) % 55),
+      riskNote: `Project status: ${project.status.replace('_', ' ')}.`, refId: project.id,
+    })),
+    ...buildings.map((building, index) => ({
+      id: `building-${building.id}`, name: building.name, code: building.code || building.id.slice(0, 8), zone: building.location || 'Location not set',
+      type: 'building' as const, status: 'handed_over' as const,
+      budget: projects.find((project) => project.id === building.projectId)?.budgetTotal ?? 0,
+      spent: projects.find((project) => project.id === building.projectId)?.budgetSpent ?? 0, progress: 100, floors: building.totalFloors,
+      contractor: projects.find((project) => project.id === building.projectId)?.contractor || 'Contractor not set',
+      x: 22 + (((projects.length + index) * 19) % 62), y: 28 + (((projects.length + index) * 21) % 52),
+      riskNote: `${building.activeAlertsCount} unresolved building alerts.`, refId: building.id,
+    })),
   ];
+  const [selectedPinId, setSelectedPinId] = useState<string>('');
+  const selectedId = locations.some((location) => location.id === selectedPinId) ? selectedPinId : locations[0]?.id ?? '';
 
-  const selectedLoc = locations.find((l) => l.id === selectedPinId) || locations[0];
+  const selectedLoc = locations.find((l) => l.id === selectedId);
 
   // Aggregate Portfolio Stats
-  const totalPipelineCapital = locations.reduce((sum, l) => sum + l.budget, 0);
-  const totalSpentCapital = locations.reduce((sum, l) => sum + l.spent, 0);
+  const totalPipelineCapital = projects.reduce((sum, p) => sum + p.budgetTotal, 0);
+  const totalSpentCapital = projects.reduce((sum, p) => sum + p.budgetSpent, 0);
   const totalFloors = locations.reduce((sum, l) => sum + l.floors, 0);
+  const constructionCount = projects.filter((project) => project.status !== 'handed_over' && project.status !== 'completed').length;
 
   const handleLaunchTarget = () => {
+    if (!selectedLoc) return;
     if (selectedLoc.type === 'building') {
       const bldg = buildings.find((b) => b.id === selectedLoc.refId) || buildings[0];
       if (bldg) onSelectBuilding(bldg);
@@ -157,6 +90,8 @@ export const PortfolioMapView: React.FC<PortfolioMapViewProps> = ({
     }
   };
 
+  if (locations.length === 0) return <div className="rounded-2xl border border-[#232C3B] bg-[#121821] p-10 text-center text-slate-300">No project or building portfolio data is available yet.</div>;
+
   return (
     <div className="space-y-6">
       {/* Portfolio Header & KPIs */}
@@ -164,16 +99,14 @@ export const PortfolioMapView: React.FC<PortfolioMapViewProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono uppercase bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2.5 py-0.5 rounded-full font-bold">
-                ENTERPRISE METROPOLITAN PORTFOLIO
-              </span>
-              <span className="text-xs text-slate-400 font-mono">Greater Lagos Mega-City Cluster</span>
+              <span className="text-[10px] font-mono uppercase bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2.5 py-0.5 rounded-full font-bold">PROJECT PORTFOLIO</span>
+              <span className="text-xs text-slate-400 font-mono">Live backend records</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white">
-              Lagos Project Pipeline & Digital Twin Operations
+              Project Pipeline & Digital Twin Operations
             </h1>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Real-time geospatial telemetry monitoring active developments across Victoria Island, Lekki, Marina CBD, Ikoyi, and Eko Atlantic.
+              Projects and handed-over buildings currently recorded in the CONSTRUX database.
             </p>
           </div>
 
@@ -185,13 +118,13 @@ export const PortfolioMapView: React.FC<PortfolioMapViewProps> = ({
             </div>
             <div className="p-3 rounded-2xl bg-[#0B0F14] border border-[#232C3B]">
               <div className="text-[10px] text-slate-500 uppercase">Active Towers</div>
-              <div className="text-base font-black text-amber-400 mt-0.5">5 Sites</div>
+              <div className="text-base font-black text-amber-400 mt-0.5">{locations.length} Sites</div>
               <div className="text-[10px] text-slate-400">{totalFloors} Suspended Floors</div>
             </div>
             <div className="p-3 rounded-2xl bg-[#0B0F14] border border-[#232C3B]">
               <div className="text-[10px] text-slate-500 uppercase">Twin Status</div>
-              <div className="text-base font-black text-purple-400 mt-0.5">1 Operating</div>
-              <div className="text-[10px] text-purple-300">4 In Build OS</div>
+              <div className="text-base font-black text-purple-400 mt-0.5">{buildings.length} Operating</div>
+              <div className="text-[10px] text-purple-300">{constructionCount} In Build OS</div>
             </div>
           </div>
         </div>
@@ -202,10 +135,7 @@ export const PortfolioMapView: React.FC<PortfolioMapViewProps> = ({
         <div className="lg:col-span-8 bg-[#0B0F14] border border-[#232C3B] rounded-3xl p-6 shadow-2xl relative min-h-[480px] flex flex-col justify-between overflow-hidden">
           {/* Map Top Indicators */}
           <div className="flex items-center justify-between z-10">
-            <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-              <span className="text-slate-300 font-semibold">Live Geospatial Telemetry</span>
-            </div>
+            <div className="flex items-center gap-2 text-xs font-mono"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-slate-300 font-semibold">Recorded project locations</span></div>
 
             <div className="flex items-center gap-3 text-[11px] font-mono">
               <div className="flex items-center gap-1.5">
@@ -362,13 +292,13 @@ export const PortfolioMapView: React.FC<PortfolioMapViewProps> = ({
           </div>
 
           <div className="text-[11px] font-mono text-slate-500 z-10 flex items-center justify-between">
-            <span>Coordinates: 6.4281° N, 3.4219° E</span>
+            <span>Map positions are illustrative; exact coordinates are not stored in the API.</span>
             <span>Click any location pin to inspect telemetry</span>
           </div>
         </div>
 
         {/* Selected Project / Twin Detail Drawer (4 cols) */}
-        <div className="lg:col-span-4 bg-[#121821] border border-[#232C3B] rounded-3xl p-6 shadow-2xl flex flex-col justify-between space-y-6">
+        {selectedLoc && <div className="lg:col-span-4 bg-[#121821] border border-[#232C3B] rounded-3xl p-6 shadow-2xl flex flex-col justify-between space-y-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono uppercase bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
@@ -440,7 +370,7 @@ export const PortfolioMapView: React.FC<PortfolioMapViewProps> = ({
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );
